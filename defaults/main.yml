@@ -1,0 +1,5 @@
+---
+
+restic_jobs: []
+restic_conflicts_timeout: 600
+restic_options: --verbose --exclude-caches --one-file-system

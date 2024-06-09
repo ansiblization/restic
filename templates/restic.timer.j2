@@ -1,0 +1,11 @@
+{% include 'common/templates/header.j2' %}
+
+[Unit]
+Description=Ansible restic timer ({{ restic_vars.name }})
+
+[Timer]
+OnCalendar={{ restic_vars.schedule }}
+Unit=ansible-restic@{{ restic_vars.name }}.service
+
+[Install]
+WantedBy=timers.target

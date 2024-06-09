@@ -1,0 +1,21 @@
+{% include 'common/templates/header.j2' %}
+
+[Unit]
+Description=Ansible restic job (%i)
+
+[Service]
+Type=exec
+User=root
+StandardError=syslog
+StandardOutput=syslog
+SyslogIdentifier=ansible-restic-%i
+EnvironmentFile=/etc/ansible-restic/%i.env
+ExecStartPre=-/usr/bin/restic init
+ExecStartPre=/usr/bin/xargs -r -a /etc/ansible-restic/%i.conflicts /usr/bin/systemctl stop
+ExecStart=/usr/bin/xargs -r -a /etc/ansible-restic/%i.args /usr/bin/restic {{ restic_options }} --exclude-file "/etc/ansible-restic/%i.exclude" backup
+ExecStopPost=/usr/bin/restic forget --keep-hourly "${RESTIC_KEEP_HOURLY}" --keep-daily "${RESTIC_KEEP_DAILY}" --keep-weekly "${RESTIC_KEEP_WEEKLY}" --keep-monthly "${RESTIC_KEEP_MONTHLY}" --keep-yearly "${RESTIC_KEEP_YEARLY}" --prune
+ExecStopPost=/usr/bin/xargs -r -a /etc/ansible-restic/%i.conflicts /usr/bin/systemctl start
+TimeoutStopSec={{ restic_conflicts_timeout }}
+
+[Install]
+WantedBy=multi-user.target

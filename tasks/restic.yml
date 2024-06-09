@@ -1,0 +1,80 @@
+---
+
+- name: Assert valid job configuration
+  ansible.builtin.assert:
+    that:
+      - restic_job.name is defined
+      - restic_job.paths is defined
+      - restic_job.paths | length > 0
+      - restic_job.password is defined
+      - restic_job.repository is defined
+    msg: Invalid job configuration.
+
+- name: Resolve restic job variables
+  ansible.builtin.set_fact:
+    restic_vars:
+      name: "{{ restic_job.name }}"
+      paths: "{{ restic_job.paths }}"
+      password: "{{ restic_job.password }}"
+      repository: "{{ restic_job.repository }}"
+      compression: "{{ restic_job.compression | default('auto') }}"
+      schedule: "{{ restic_job.schedule | default(None) }}"
+      exclude: "{{ restic_job.exclude | default([]) }}"
+      environment: "{{ restic_job.environment | default({}) }}"
+      conflicts: "{{ restic_job.conflicts | default([]) }}"
+      state: "{{ restic_job.state | default('present') }}"
+      prune: "{{ restic_job.prune | default(true) }}"
+      keep_hourly: "{{ restic_job.keep_daily | default(24) }}"
+      keep_daily: "{{ restic_job.keep_daily | default(7) }}"
+      keep_weekly: "{{ restic_job.keep_weekly | default(4) }}"
+      keep_monthly: "{{ restic_job.keep_monthly | default(6) }}"
+      keep_yearly: "{{ restic_job.keep_monthly | default(4) }}"
+
+- name: Assert supported compression mode
+  ansible.builtin.assert:
+    that: ["restic_vars.compression in ['none', 'auto', 'max']"]
+    msg: "Unsupported compression mode: {{ restic_vars.compression }}"
+
+- name: Ensure restic job configuration files
+  ansible.builtin.template:
+    src: "restic.{{ restic_configuration_type }}.j2"
+    dest: "/etc/ansible-restic/{{ restic_vars.name
+      }}.{{ restic_configuration_type }}"
+    mode: "0o600"
+  loop_control:
+    loop_var: restic_configuration_type
+  loop: ["env", "args", "exclude", "conflicts"]
+  when: restic_vars.state == "present"
+
+- name: Prune absent job configuration files
+  ansible.builtin.file:
+    dest: "/etc/ansible-restic/{{ restic_vars.name
+      }}.{{ restic_configuration_type }}"
+    state: absent
+  loop_control:
+    loop_var: restic_configuration_type
+  loop: ["env", "args", "exclude", "conflicts"]
+  when: restic_vars.state == 'absent'
+
+- name: Ensure schedule state
+  ansible.builtin.set_fact:
+    restic_job_scheduled: "{{ restic_vars.schedule and
+      restic_vars.state == 'present' }}"
+
+- name: Ensure restic timer unit
+  ansible.builtin.template:
+    src: "restic.timer.j2"
+    dest: "/etc/systemd/system/ansible-restic-{{ restic_vars.name }}.timer"
+    mode: "0o644"
+  when: restic_job_scheduled
+  notify: Enable restic timer
+
+- name: Ensure absent restic timer unit
+  ansible.builtin.file:
+    path: "/etc/systemd/system/ansible-restic-{{ restic_vars.name }}.timer"
+    state: absent
+  when: not restic_job_scheduled
+  notify: Daemon reload
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

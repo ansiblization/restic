@@ -1,0 +1,5 @@
+{% if restic_vars.conflicts %}
+{% for restic_conflict in restic_vars.conflicts %}
+{{ restic_conflict }}
+{% endfor %}
+{% endif %}

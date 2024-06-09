@@ -1,0 +1,7 @@
+{% include 'common/templates/header.j2' %}
+{% if restic_vars.exclude %}
+
+{% for restic_exclude in restic_vars.exclude %}
+{{ restic_exclude }}
+{% endfor %}
+{% endif %}
